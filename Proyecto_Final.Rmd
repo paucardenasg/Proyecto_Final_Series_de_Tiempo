@@ -1,0 +1,666 @@
+---
+title: "Proyecto Final"
+author: "Cárdenas Gallardo Paula Daniela y José Manuel Haces López"
+date: "02-12-2022"
+output: html_document
+---
+
+# Forecasting - Crecimiento de la Economía Mexicana
+
+## *Proyecto Final \| Series de Tiempo*
+
+## 1. Introducción
+
+El objetivo principal del proyecto es realizar *forecasts* del Producto Interno Bruto de México.
+
+```{r, message=FALSE, warning=FALSE}
+# Librerías necesarias
+library(tidyverse)
+library(tsibble)
+library(feasts)
+library(fable)
+library(tsibbledata)
+library(fpp3)
+library(patchwork)
+library(timetk)
+library(astsa)
+library(nlme)
+library(plotly)
+```
+
+## 2. Los datos
+
+Se obtuvo el conjunto de datos a partir del archivo `data_gdp.csv`, el cual contiene $114$ registros (filas) y las siguientes $9$ variables (columnas):
+
+-   `date` $\rightarrow$ Fecha en cuartos de año, desde 1993 Q1 hasta 2021 Q2
+-   `gdp` $\rightarrow$ Producto Interno Bruto Real de México, en pesos mexicanos (MXN) (Gross Domestic Product (GDP))
+-   `consumption` $\rightarrow$ Gasto real de consumo final del sector privado de México, en MXN (Real Private Sector Final Consumption Expenditure)
+-   `gov_exp` $\rightarrow$ Gasto real en consumo final del gobierno general de México, en MXN (Real General Government Final Consumption Expenditure)
+-   `imports` $\rightarrow$ Importaciones reales de bienes y servicios (Real Imports of Goods and Services) de México, en MXN
+-   `exports` $\rightarrow$ Exportaciones reales de bienes y servicios de México, en MXN (Real Exports of Goods and Services)
+-   `unemployment` $\rightarrow$ Porcentaje de tasa de desempleo de las personas de 15 años y más en México (Unemployment Rate: Aged 15 and Over: All Persons)
+-   `usd` $\rightarrow$ Promedio de tasas diarias del tipo de cambio de moneda nacional a dólar estadounidense, en MXN (National Currency to US Dollar Exchange Rate: Average of Daily Rates)
+-   `uncertainty` $\rightarrow$ Índice Mundial de Incertidumbre para México (World Uncertainty Index)
+
+```{r}
+# Importar los datos 
+data <- read_csv("data_gdp.csv", show_col_type=FALSE) |> 
+  mutate(date=yearquarter(date)) |> 
+           as_tsibble(index=date)
+
+head(data)
+```
+
+## 3. Objetivos
+
+### 3.1 Investigación
+
+Según el Banco Mundial de México, durante las últimas tres décadas, este país ha tenido un desempeño por debajo de lo esperado en términos de crecimiento, inclusión y reducción de la pobreza en comparación con países similares. La economía tuvo un crecimiento estimado en poco más del $2.0$% anual entre 1980 y 2018, lo que limita el progreso en la convergencia en relación con las economías de altos ingresos. La economía mexicana creció $4.8$% en 2021, luego de una caída de $8.1$% el año anterior debido a la pandemia de COVID-19. En cuanto a al Producto Interno Bruto (PIB), que es la suma del valor (en dinero) de todos los bienes y servicios de uso final que genera un país o entidad federativa durante un período (comúnmente un año o trimestre), se dice que la economía de un país crece cuando su PIB aumenta de un período a otro. Por el contrario, cuando el PIB disminuye se dice que baja la actividad económica. Es sumamente útil para saber si la economía del país está creciendo o no, es decir, si se produjo más o menos que el año anterior. El cambio en el PIB a lo largo del tiempo es uno de los indicadores más importantes del crecimiento económico.
+
+## 4. Análisis Exploratorio de Datos (EDA)
+### 4.1. Serie de Tiempo por Variable
+```{r}
+# Linear plots
+# GDP
+data |>
+  ggplot(aes(x=date, y=gdp, color=gdp)) +
+  geom_line() +
+      ggtitle("GDP over time") +
+      ylab('MXN') + xlab('Time') + 
+      theme(
+        plot.title = element_text(color= '#24815C',
+                                  size=14,
+                                  face='bold'),
+        axis.title.x = element_text(color='#1B1818',
+                                    size=11,
+                                    face='bold.italic'),
+        axis.title.y = element_text(color='#1B1818',
+                                    size=11,
+                                    face='bold.italic')) 
+
+# consumption
+data |>
+  ggplot(aes(x=date, y=consumption, color=gdp)) +
+  geom_line() +
+      ggtitle("Consumption over time") +
+      ylab('MXN') + xlab('Time') + 
+      theme(
+        plot.title = element_text(color= '#24815C',
+                                  size=14,
+                                  face='bold'),
+        axis.title.x = element_text(color='#1B1818',
+                                    size=11,
+                                    face='bold.italic'),
+        axis.title.y = element_text(color='#1B1818',
+                                    size=11,
+                                    face='bold.italic')) 
+
+# gov_exp
+data |>
+  ggplot(aes(x=date, y=gov_exp, color=gdp)) +
+  geom_line() +
+      ggtitle("General Government Final Consumption Expenditure over time") +
+      ylab('MXN') + xlab('Time') + 
+      theme(
+        plot.title = element_text(color= '#24815C',
+                                  size=14,
+                                  face='bold'),
+        axis.title.x = element_text(color='#1B1818',
+                                    size=11,
+                                    face='bold.italic'),
+        axis.title.y = element_text(color='#1B1818',
+                                    size=11,
+                                    face='bold.italic')) 
+# imports
+data |>
+  ggplot(aes(x=date, y=imports, color=gdp)) +
+  geom_line() +
+      ggtitle("Imports over time") +
+      ylab('MXN') + xlab('Time') + 
+      theme(
+        plot.title = element_text(color= '#24815C',
+                                  size=14,
+                                  face='bold'),
+        axis.title.x = element_text(color='#1B1818',
+                                    size=11,
+                                    face='bold.italic'),
+        axis.title.y = element_text(color='#1B1818',
+                                    size=11,
+                                    face='bold.italic')) 
+# exports
+data |>
+  ggplot(aes(x=date, y=exports, color=gdp)) +
+  geom_line() +
+      ggtitle("Exports over time") +
+      ylab('MXN') + xlab('Time') + 
+      theme(
+        plot.title = element_text(color= '#24815C',
+                                  size=14,
+                                  face='bold'),
+        axis.title.x = element_text(color='#1B1818',
+                                    size=11,
+                                    face='bold.italic'),
+        axis.title.y = element_text(color='#1B1818',
+                                    size=11,
+                                    face='bold.italic')) 
+# unemployment
+data |>
+  ggplot(aes(x=date, y=unemployment, color=gdp)) +
+  geom_line() +
+      ggtitle("Unemployment over time") +
+      ylab('%') + xlab('Time') + 
+      theme(
+        plot.title = element_text(color= '#24815C',
+                                  size=14,
+                                  face='bold'),
+        axis.title.x = element_text(color='#1B1818',
+                                    size=11,
+                                    face='bold.italic'),
+        axis.title.y = element_text(color='#1B1818',
+                                    size=11,
+                                    face='bold.italic')) 
+
+# usd
+data |>
+  ggplot(aes(x=date, y=usd, color=gdp)) +
+  geom_line() +
+      ggtitle("usd over time") +
+      ylab('MXN') + xlab('Time') + 
+      theme(
+        plot.title = element_text(color= '#24815C',
+                                  size=14,
+                                  face='bold'),
+        axis.title.x = element_text(color='#1B1818',
+                                    size=11,
+                                    face='bold.italic'),
+        axis.title.y = element_text(color='#1B1818',
+                                    size=11,
+                                    face='bold.italic')) 
+
+# uncertainty
+data |>
+  ggplot(aes(x=date, y=uncertainty, color=gdp)) +
+  geom_line() +
+      ggtitle("Uncertainty over time") +
+      ylab('Index') + xlab('Time') + 
+      theme(
+        plot.title = element_text(color= '#24815C',
+                                  size=14,
+                                  face='bold'),
+        axis.title.x = element_text(color='#1B1818',
+                                    size=11,
+                                    face='bold.italic'),
+        axis.title.y = element_text(color='#1B1818',
+                                    size=11,
+                                    face='bold.italic')) 
+
+```
+
+### 4.2. Verificar si hay variables que requieren transformaciones o ajustes:
+```{r}
+# consumption
+data |>
+  ggplot(aes(x=date, y=log(consumption), color=gdp)) +
+  geom_line() +
+      ggtitle("Log - Consumption over time") +
+      ylab('MXN') + xlab('Time') + 
+      theme(
+        plot.title = element_text(color= '#24815C',
+                                  size=14,
+                                  face='bold'),
+        axis.title.x = element_text(color='#1B1818',
+                                    size=11,
+                                    face='bold.italic'),
+        axis.title.y = element_text(color='#1B1818',
+                                    size=11,
+                                    face='bold.italic')) 
+# imports
+data |>
+  ggplot(aes(x=date, y=log(imports), color=gdp)) +
+  geom_line() +
+      ggtitle("Log - Imports over time") +
+      ylab('MXN') + xlab('Time') + 
+      theme(
+        plot.title = element_text(color= '#24815C',
+                                  size=14,
+                                  face='bold'),
+        axis.title.x = element_text(color='#1B1818',
+                                    size=11,
+                                    face='bold.italic'),
+        axis.title.y = element_text(color='#1B1818',
+                                    size=11,
+                                    face='bold.italic')) 
+# exports
+data |>
+  ggplot(aes(x=date, y=log(exports), color=gdp)) +
+  geom_line() +
+      ggtitle("Log - Exports over time") +
+      ylab('MXN') + xlab('Time') + 
+      theme(
+        plot.title = element_text(color= '#24815C',
+                                  size=14,
+                                  face='bold'),
+        axis.title.x = element_text(color='#1B1818',
+                                    size=11,
+                                    face='bold.italic'),
+        axis.title.y = element_text(color='#1B1818',
+                                    size=11,
+                                    face='bold.italic')) 
+```
+No hubo mucha diferencia, así que se trabajará con las originales.
+
+```{r}
+# Seasonal plots
+# GDP
+data |>
+  gg_season(gdp) |> 
+  ggplotly()
+
+# consumption
+data |>
+  gg_season(consumption) |> 
+  ggplotly()
+
+# gov_exp
+data |>
+  gg_season(gov_exp) |> 
+  ggplotly()
+
+# imports
+data |>
+  gg_season(imports) |> 
+  ggplotly()
+
+# exports
+data |>
+  gg_season(exports) |> 
+  ggplotly()
+
+# unemployment
+data |>
+  gg_season(unemployment) |> 
+  ggplotly()
+
+# usd
+data |>
+  gg_season(usd) |> 
+  ggplotly()
+
+# uncertainty
+data |>
+  gg_season(uncertainty) |> 
+  ggplotly()
+
+```
+```{r}
+# Boxplot
+# GDP
+ggplot(data = data, aes(x = quarter(date), y = gdp,
+                        group= quarter(date), color = as.factor(quarter(date)))) +
+  geom_boxplot() +
+  ggtitle("GDP per quarter") +
+  ylab('MXN') + xlab('Quarter') + 
+  theme(plot.title = element_text(color= '#24815C',
+                              size=14,
+                              face='bold'),
+        axis.title.x = element_text(color='#1B1818',
+                                size=11,
+                                face='bold.italic'),
+        axis.title.y = element_text(color='#1B1818',
+                                size=11,
+                                face='bold.italic'),
+        legend.title=element_blank()) 
+
+# consumption
+ggplot(data = data, aes(x = quarter(date), y = consumption,
+                        group= quarter(date), color = as.factor(quarter(date)))) +
+  geom_boxplot() +
+  ggtitle("Consumption per quarter") +
+  ylab('MXN') + xlab('Quarter') + 
+  theme(plot.title = element_text(color= '#24815C',
+                              size=14,
+                              face='bold'),
+        axis.title.x = element_text(color='#1B1818',
+                                size=11,
+                                face='bold.italic'),
+        axis.title.y = element_text(color='#1B1818',
+                                size=11,
+                                face='bold.italic'),
+        legend.title=element_blank()) 
+
+# gov_exp
+ggplot(data = data, aes(x = quarter(date), y = gov_exp,
+                        group= quarter(date), color = as.factor(quarter(date)))) +
+  geom_boxplot() +
+  ggtitle("Government Final Consumption per quarter") +
+  ylab('MXN') + xlab('Quarter') + 
+  theme(plot.title = element_text(color= '#24815C',
+                              size=14,
+                              face='bold'),
+        axis.title.x = element_text(color='#1B1818',
+                                size=11,
+                                face='bold.italic'),
+        axis.title.y = element_text(color='#1B1818',
+                                size=11,
+                                face='bold.italic'),
+        legend.title=element_blank()) 
+
+# imports
+ggplot(data = data, aes(x = quarter(date), y = imports,
+                        group= quarter(date), color = as.factor(quarter(date)))) +
+  geom_boxplot() +
+  ggtitle("Imports per quarter") +
+  ylab('MXN') + xlab('Quarter') + 
+  theme(plot.title = element_text(color= '#24815C',
+                              size=14,
+                              face='bold'),
+        axis.title.x = element_text(color='#1B1818',
+                                size=11,
+                                face='bold.italic'),
+        axis.title.y = element_text(color='#1B1818',
+                                size=11,
+                                face='bold.italic'),
+        legend.title=element_blank()) 
+
+# exports
+ggplot(data = data, aes(x = quarter(date), y = exports,
+                        group= quarter(date), color = as.factor(quarter(date)))) +
+  geom_boxplot() +
+  ggtitle("Exports per quarter") +
+  ylab('MXN') + xlab('Quarter') + 
+  theme(plot.title = element_text(color= '#24815C',
+                              size=14,
+                              face='bold'),
+        axis.title.x = element_text(color='#1B1818',
+                                size=11,
+                                face='bold.italic'),
+        axis.title.y = element_text(color='#1B1818',
+                                size=11,
+                                face='bold.italic'),
+        legend.title=element_blank()) 
+
+# unemployment
+ggplot(data = data, aes(x = quarter(date), y = unemployment,
+                        group= quarter(date), color = as.factor(quarter(date)))) +
+  geom_boxplot() +
+  ggtitle("Unemployment per quarter") +
+  ylab('%') + xlab('Quarter') + 
+  theme(plot.title = element_text(color= '#24815C',
+                              size=14,
+                              face='bold'),
+        axis.title.x = element_text(color='#1B1818',
+                                size=11,
+                                face='bold.italic'),
+        axis.title.y = element_text(color='#1B1818',
+                                size=11,
+                                face='bold.italic'),
+        legend.title=element_blank()) 
+
+# usd
+ggplot(data = data, aes(x = quarter(date), y = usd,
+                        group= quarter(date), color = as.factor(quarter(date)))) +
+  geom_boxplot() +
+  ggtitle("MXN change to USD per quarter") +
+  ylab('MXN') + xlab('Quarter') + 
+  theme(plot.title = element_text(color= '#24815C',
+                              size=14,
+                              face='bold'),
+        axis.title.x = element_text(color='#1B1818',
+                                size=11,
+                                face='bold.italic'),
+        axis.title.y = element_text(color='#1B1818',
+                                size=11,
+                                face='bold.italic'),
+        legend.title=element_blank()) 
+
+# uncertainty
+ggplot(data = data, aes(x = quarter(date), y = uncertainty,
+                        group= quarter(date), color = as.factor(quarter(date)))) +
+  geom_boxplot() +
+  ggtitle("Uncertainty per quarter") +
+  ylab('Index') + xlab('Quarter') + 
+  theme(plot.title = element_text(color= '#24815C',
+                              size=14,
+                              face='bold'),
+        axis.title.x = element_text(color='#1B1818',
+                                size=11,
+                                face='bold.italic'),
+        axis.title.y = element_text(color='#1B1818',
+                                size=11,
+                                face='bold.italic'),
+        legend.title=element_blank()) 
+```
+
+### 4.3.Identificar datos atípicos:
+```{r}
+# STL decomposition
+# GDP
+data |> 
+  model(stl = STL(gdp, robust = TRUE)) |> 
+  components() |> 
+  autoplot() |> 
+  ggplotly()
+
+# consumption
+data |> 
+  model(stl = STL(consumption, robust = TRUE)) |> 
+  components() |> 
+  autoplot() |> 
+  ggplotly()
+
+# gov_exp
+data |> 
+  model(stl = STL(gov_exp, robust = TRUE)) |> 
+  components() |> 
+  autoplot() |> 
+  ggplotly()
+
+# imports
+data |> 
+  model(stl = STL(imports, robust = TRUE)) |> 
+  components() |> 
+  autoplot() |> 
+  ggplotly()
+
+# exports
+data |> 
+  model(stl = STL(exports, robust = TRUE)) |> 
+  components() |> 
+  autoplot() |> 
+  ggplotly()
+
+# unemployment
+data |> 
+  model(stl = STL(unemployment, robust = TRUE)) |> 
+  components() |> 
+  autoplot() |> 
+  ggplotly()
+
+# usd
+data |> 
+  model(stl = STL(usd, robust = TRUE)) |> 
+  components() |> 
+  autoplot() |> 
+  ggplotly()
+
+# uncertainty
+data |> 
+  model(stl = STL(uncertainty, robust = TRUE)) |> 
+  components() |> 
+  autoplot() |> 
+  ggplotly()
+```
+
+
+## 5. Modelado
+
+-   Intentar:
+    -   Transformations/adjustments
+    -   Forecasting using decomposition
+    -   Model combinations
+    -   Handling outliers
+    -   For multivariate models, using dummy variables
+    -   Fourier transformations to account for seasonality
+
+### 5.1. Train y Test
+
+```{r}
+# Conjunto de Train
+train <- data %>% 
+  filter_index(. ~ "2015 Q4")
+
+# Conjunto de Test
+test <- data %>% 
+  filter_index("2016 Q1"~.)
+```
+
+### 5.2. Descomposición y ETS
+
+```{r}
+fit1 <- train %>% 
+  model(
+    Desc_ETS = decomposition_model(
+      STL(gdp, robust = TRUE),
+      ETS(season_adjust ~ error("A") + trend("Ad") + season("N"))
+    )
+  )
+
+fit1 %>% report()
+
+p <- train %>% 
+  autoplot(gdp) +
+  geom_line(aes(y = .fitted), data = fit1 %>% augment(), color = "firebrick")
+
+plotly::ggplotly(p)
+```
+
+### 5.3. Mínimos Cuadrados Generalizados
+
+-   Este modelo de Mínimos Cuadrados Generalizados con correlaciones Arima se usará para obtener la Significancia Estadística de las variables y descartar las que no lo son.
+
+```{r}
+mod <- gls(gdp ~ ., data=train %>% select(-(date)), correlation=corAR1(form=~1), method="ML")
+sum <- summary(mod)
+as.data.frame(sum[19])
+```
+
+
+
+#### 5.3.1. Modelos Lineales Simples con Errores Arima
+
+```{r}
+data_fit_lm <- train |> 
+    model(
+      model_consumption = (ARIMA(gdp ~ consumption)),
+      model_gov_exp = (ARIMA(gdp ~ gov_exp)),
+      model_exports = (ARIMA(gdp ~ exports)),
+      model_unemployment = (ARIMA(gdp ~ unemployment))
+    )
+
+acc <- accuracy(data_fit_lm) |> 
+  select(.model, .type, MAPE, MAE) |> 
+  arrange(MAPE)
+
+acc
+
+```
+
+-   Con base en la tabla anterior, seleccionaremos los dos modelos con menor MAPE para predecir con ellos:
+    -   *model_consumption*
+    -   *model_gov_exp*
+
+### 5.4. Regresión Lineal Simple con la variable 'consumption'
+
+```{r}
+fit2 <- train %>%
+  model(LM_Consumption = ARIMA(gdp ~ consumption))
+
+p <- train %>% 
+  autoplot(gdp) +
+  geom_line(aes(y = .fitted), data = fit2 %>% augment(), color = "firebrick")
+
+plotly::ggplotly(p)
+```
+
+### 5.5. Regresión Lineal Simple con la variable 'gov_exp'
+
+```{r}
+fit3 <- train %>%
+  model(LM_GovExp = ARIMA(gdp ~ gov_exp))
+
+p <- train %>% 
+  autoplot(gdp) +
+  geom_line(aes(y = .fitted), data = fit3 %>% augment(), color = "firebrick")
+
+plotly::ggplotly(p)
+```
+
+## 6 Forecasting
+
+Producir predicción un año adelante (hasta 2022 Q2)
+
+### 6.1. Descomposición y ETS
+
+```{r}
+fc1 <- fit1 %>% 
+  forecast(h = 22)
+
+fc1 %>% 
+  autoplot(test, level = NULL)
+```
+
+### 6.2. Regresión Lineal con Errores Arima (Consumption)
+
+```{r}
+# Haciendo el test para la regresión
+test_lm_consumption <- test %>% select(c(date, consumption))
+
+# HAciendo el Forecast
+fc2 <- forecast(fit2, new_data = test_lm_consumption) 
+
+# Ploteando la pred
+fc2 %>% 
+  autoplot(test, level = NULL)
+```
+
+### 6.3. Regresión Lineal con Errores Arima (Gov_Exp)
+
+```{r}
+# Haciendo el test para la regresión
+test_lm_gov <- test %>% select(c(date, gov_exp))
+
+# HAciendo el Forecast
+fc3 <- forecast(fit3, new_data = test_lm_gov) 
+
+# Ploteando la pred
+fc3 %>% 
+  autoplot(test, level = NULL)
+```
+
+## 7. Desempeño
+
+Considerar el MAPE - Concatenar todos los resultados en un DF
+
+```{r}
+desemp1 <- fc1 %>% 
+  accuracy(test) %>%
+  select(c(.model, .type, MAPE, MAE))
+
+desemp2 <- fc2 %>% 
+  accuracy(test) %>%
+  select(c(.model, .type, MAPE, MAE))
+
+desemp3 <- fc3 %>% 
+  accuracy(test) %>% 
+  select(c(.model, .type, MAPE, MAE))
+
+desemp <- rbind(desemp1, desemp2)
+desemp <- rbind(desemp, desemp3)
+desemp
+```
+
+## 8. Referencias Bibliográficas
+
+Banco Mundial. (2022) *México: panorama general*. Consultado el 24 de noviembre de 2022, de <https://www.bancomundial.org/es/country/mexico/overview>
+
+INEGI. (2020) *Producto Interno Bruto (PIB)*. Consultado el 24 de noviembre de 2022, de <https://cuentame.inegi.org.mx/economia/pib.aspx?tema=e>
